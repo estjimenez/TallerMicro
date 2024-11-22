@@ -1,77 +1,143 @@
 <?php
+
 namespace App\Http\Controllers;
 
+
 use App\Models\modelEstudiante;
-use App\Models\nota;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
 
 class controllerEstudiante extends Controller
 {
     public function index()
     {
-        $estudiantes = modelEstudiante::all()->map(function ($estudiante) {
-            $notas = nota::where('codEstudiante', $estudiante->cod)->get();
-            $promedio = $notas->avg('nota');
+        $estudiantes = modelEstudiante::all();
 
-            $estudiante->nota_definitiva = $notas->isEmpty() ? 'No hay nota' : number_format($promedio, 2);
-            $estudiante->estado = $notas->isEmpty() ? 'Sin notas' : ($promedio >= 3 ? 'Aprobó' : 'Perdió');
+        if ($estudiantes->isEmpty()) {
+            $data = [
+                'mensaje' => 'No se encontraron estudiantes',
+                'status' => 200
+            ];
+            return response()->json($data, 200);
+        }
 
-            return $estudiante;
-        });
-
-        return response()->json([
-            'estudiantes' => $estudiantes,
-            'resumen' => [
-                'sin_notas' => $estudiantes->where('estado', 'Sin notas')->count(),
-                'aprobados' => $estudiantes->where('estado', 'Aprobó')->count(),
-                'perdidos' => $estudiantes->where('estado', 'Perdió')->count(),
-            ]
-        ]);
+        return response()->json($estudiantes, 200);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'cod' => 'required|unique:estudiantes,cod',
-            'nombres' => 'required|string|max:250',
-            'email' => 'required|email|unique:estudiantes,email',
+        $validator =  Validator::make($request->all(), [
+            'cod' => 'required|unique:estudiantes',
+            'nombres' => 'required|max:255',
+            'email' => 'required|email'
         ]);
 
-        modelEstudiante::create($validated);
-        return response()->json(['message' => 'Estudiante creado con éxito'], 201);
-    }
-
-    public function update(Request $request, $cod)
-    {
-        $estudiante = modelEstudiante::find($cod);
-
-        if (!$estudiante) {
-            return response()->json(['message' => 'Estudiante no encontrado'], 404);
+        if ($validator->fails()) {
+            $data = [
+                'message' => 'Error en la validacion de datos',
+                'errors' => $validator->errors(),
+                'status' => 400
+            ];
+            return response()->json($data, 400);
         }
 
-        $validated = $request->validate([
-            'nombres' => 'required|string|max:250',
-            'email' => "required|email|unique:estudiantes,email,{$cod},cod",
+        $student = modelEstudiante::create([
+            'cod' => $request->cod,
+            'nombres' => $request->nombres,
+            'email' => $request->email
         ]);
 
-        $estudiante->update($validated);
-        return response()->json(['message' => 'Estudiante actualizado con éxito']);
+        if (!$student) {
+            $data = [
+                'message' => 'Error al crear estudiante',
+                'status' => 500
+            ];
+            return response()->json($data, 500);
+        }
+
+        $data = [
+            'student' => $student,
+            'status' => 201
+        ];
+        return response()->json($data, 201);
+    }
+
+    public function show($cod)
+    {
+        $student = modelEstudiante::find($cod);
+
+        if (!$student) {
+            $data = [
+                'messague' => 'Estudiante no encontrado',
+                'status' => 404
+            ];
+            return response()->json($data, 404);
+        }
+
+        $data = [
+            'student' => $student,
+            'status' => 200
+        ];
+        return response()->json($data, 200);
     }
 
     public function destroy($cod)
     {
-        $estudiante = modelEstudiante::find($cod);
+        $student = modelEstudiante::find($cod);
 
-        if (!$estudiante) {
-            return response()->json(['message' => 'Estudiante no encontrado'], 404);
+        if (!$student) {
+            $data = [
+                'messague' => 'Estudiante no encontrado',
+                'status' => 404
+            ];
+            return response()->json($data, 404);
         }
 
-        $notas = nota::where('codEstudiante', $cod)->exists();
-        if ($notas) {
-            return response()->json(['message' => 'No se puede eliminar el estudiante porque tiene notas registradas'], 400);
+        $student->delete();
+
+        $data = [
+            'message' => 'Estudiante eliminado',
+            'status' => 200
+        ];
+        return response()->json($data, 200);
+    }
+
+    public function update(Request $request, $cod)
+    {
+        $student = modelEstudiante::find($cod);
+
+        if (!$student) {
+            $data = [
+                'messague' => 'Estudiante no encontrado',
+                'status' => 404
+            ];
+            return response()->json($data, 404);
         }
 
-        $estudiante->delete();
-        return response()->json(['message' => 'Estudiante eliminado con éxito']);
+        $validator =  Validator::make($request->all(), [
+            'nombres' => 'required|max:255',
+            'email' => 'required|email'
+        ]);
+
+        if($validator->fails()){
+            $data = [
+                'message' => 'Error en la validacion de los datos',
+                'errors' => $validator->errors(),
+                'status' => 400
+            ];
+            return response()->json($data, 400);
+        }
+        $student->nombres = $request->nombres;
+        $student->email = $request->email;
+
+        $student->save();
+
+        $data = [
+            'message' => 'Estudiante actualizado',
+            'student' => $student,
+            'status' => 200
+        ];
+        return response()->json($data, 200);
     }
 }

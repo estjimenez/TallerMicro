@@ -1,54 +1,71 @@
 <?php
+
 namespace App\Http\Controllers;
 
-use App\Models\nota;
+use App\Models\modelNota;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class controllerNota extends Controller
 {
-    public function getNotasByEstudiante($codEstudiante)
+    public function index()
     {
-        $notas = nota::where('codEstudiante', $codEstudiante)->get();
-        return response()->json($notas);
-    }
+        $nota = modelNota::all();
 
-    public function store(Request $request, $codEstudiante)
-    {
-        $validated = $request->validate([
-            'actividad' => 'required|string|max:100',
-            'nota' => 'required|numeric|between:0,5',
-        ]);
-
-        nota::create(array_merge($validated, ['codEstudiante' => $codEstudiante]));
-        return response()->json(['message' => 'Nota agregada con éxito'], 201);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $nota = nota::find($id);
-
-        if (!$nota) {
-            return response()->json(['message' => 'Nota no encontrada'], 404);
+        if ($nota->isEmpty()) {
+            $data = [
+                'mensaje' => 'No se encontraron estudiantes',
+                'status' => 200
+            ];
+            return response()->json($data, 200);
         }
 
-        $validated = $request->validate([
-            'actividad' => 'required|string|max:100',
-            'nota' => 'required|numeric|between:0,5',
-        ]);
-
-        $nota->update($validated);
-        return response()->json(['message' => 'Nota actualizada con éxito']);
+        return response()->json($nota, 200);
     }
 
-    public function destroy($id)
+    public function store(Request $request)
     {
-        $nota = nota::find($id);
+        $validator =  Validator::make($request->all(), [
+            'actividad' => 'required',
+            'nota' => 'required|numeric',
+            'codEstudiante' => 'required|exists:estudiantes,cod'
+        ]);
 
-        if (!$nota) {
-            return response()->json(['message' => 'Nota no encontrada'], 404);
+        $validator->after(function ($validator) use ($request) {
+            $cantidadNotas = modelNota::where('codEstudiante', $request->codEstudiante)->count();
+
+            if ($cantidadNotas >= 2) {
+                $validator->errors()->add('codEstudiante', 'El estudiante ya tiene el maximo de dos notas registradas.');
+            }
+        });
+
+        if ($validator->fails()) {
+            $data = [
+                'message' => 'Error en la validacion de datos',
+                'errors' => $validator->errors(),
+                'status' => 400
+            ];
+            return response()->json($data, 400);
         }
 
-        $nota->delete();
-        return response()->json(['message' => 'Nota eliminada con éxito']);
+        $nota = modelNota::create([
+            'actividad' => $request->actividad,
+            'nota' => $request->nota,
+            'codEstudiante' => $request->codEstudiante
+        ]);
+
+        if (!$nota) {
+            $data = [
+                'message' => 'Error al crear el registro',
+                'status' => 500
+            ];
+            return response()->json($data, 500);
+        }
+
+        $data = [
+            'nota' => $nota,
+            'status' => 201
+        ];
+        return response()->json($data, 201);
     }
 }
