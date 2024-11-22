@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 
 use App\Models\modelEstudiante;
+use App\Models\modelNota;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -66,38 +68,75 @@ class controllerEstudiante extends Controller
     public function show($cod)
     {
         $student = modelEstudiante::find($cod);
-
+    
+        
         if (!$student) {
-            $data = [
-                'messague' => 'Estudiante no encontrado',
+            return response()->json([
+                'mensaje' => 'Estudiante no encontrado',
                 'status' => 404
-            ];
-            return response()->json($data, 404);
+            ], 404);
         }
-
-        $data = [
-            'student' => $student,
+    
+    
+        $notas = modelNota::where('codEstudiante', $cod)->get();
+    
+     
+        if ($notas->isEmpty()) {
+            return response()->json([
+                'cod' => $student->cod,
+                'nombre' => $student->nombres,
+                'email' => $student->email,
+                'notaDefinitiva' => 'Sin registrar',
+                'estado' => 'Sin registrar',
+                'status' => 200
+            ], 200);
+        }
+    
+      
+        if (!$notas->every(fn($nota) => is_numeric($nota->nota))) {
+            return response()->json([
+                'mensaje' => 'Error: Las notas no son válidas',
+                'status' => 500
+            ], 500);
+        }
+    
+     
+        $sumaNotas = $notas->sum('nota');
+        $promedio = $sumaNotas / $notas->count();
+    
+        $estado = $promedio >= 3 ? 'Aprobado' : 'Reprobado';
+    
+      
+        return response()->json([
+            'cod' => $student->cod,
+            'nombre' => $student->nombres,
+            'email' => $student->email,
+            'notaDefinitiva' => number_format($promedio, 2), 
+            'estado' => $estado,
             'status' => 200
-        ];
-        return response()->json($data, 200);
+        ], 200);
     }
+    
+
 
     public function destroy($cod)
     {
         $student = modelEstudiante::find($cod);
-
+    
         if (!$student) {
             $data = [
-                'messague' => 'Estudiante no encontrado',
+                'mensaje' => 'Estudiante no encontrado',
                 'status' => 404
             ];
             return response()->json($data, 404);
         }
-
+    
+        modelNota::where('codEstudiante', $cod)->delete();
+    
         $student->delete();
-
+    
         $data = [
-            'message' => 'Estudiante eliminado',
+            'mensaje' => 'Estudiante y sus notas eliminados',
             'status' => 200
         ];
         return response()->json($data, 200);
@@ -120,7 +159,7 @@ class controllerEstudiante extends Controller
             'email' => 'required|email'
         ]);
 
-        if($validator->fails()){
+        if ($validator->fails()) {
             $data = [
                 'message' => 'Error en la validacion de los datos',
                 'errors' => $validator->errors(),

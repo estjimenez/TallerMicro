@@ -23,8 +23,8 @@ PUT http://127.0.0.1:8000/api/app/estudiante/1055
 Content-Type: 'application/json'
 
 {
-   "nombres": "Marcos",
-   "email": "marcos@test.com"
+   "nombres": "Julio",
+   "email": "jul@test.com"
 }
 
 ### Crear registro de notas
